@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EXIF 编辑器 - 设备预设</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:opsz@14..32&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f0f13;
+    --surface: #1a1a22;
+    --surface2: #23232e;
+    --border: #2e2e3a;
+    --text: #e8e8ed;
+    --text2: #9a9aa6;
+    --accent: #5e9eff;
+    --accent-hover: #7ab0ff;
+    --danger: #ff4757;
+    --success: #2ed573;
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+  html { font-size: 14px; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100vh;
+  }
+  .app { max-width: 1360px; margin: 0 auto; padding: 20px; }
+  .header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+  .header h1 { font-size: 1.6rem; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+  .header h1 svg { width: 28px; height: 28px; }
+  .header-sub { color: var(--text2); font-size: 0.85rem; margin-top: 2px; }
+
+  .upload-zone {
+    border: 2px dashed var(--border); border-radius: var(--radius);
+    padding: 48px 24px; text-align: center; cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    background: var(--surface); position: relative;
+  }
+  .upload-zone:hover, .upload-zone.dragover { border-color: var(--accent); background: rgba(94,158,255,0.06); }
+  .upload-zone.has-image { padding: 0; border-style: solid; background: none; cursor: default; }
+  .upload-zone input[type="file"] { display: none; }
+  .upload-icon { width: 56px; height: 56px; margin: 0 auto 12px; color: var(--text2); }
+  .upload-text { font-size: 1rem; font-weight: 500; }
+  .upload-hint { color: var(--text2); font-size: 0.85rem; margin-top: 4px; }
+
+  .main-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+  @media (max-width: 900px) { .main-grid { grid-template-columns: 1fr; } }
+
+  .preview-panel { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; display: flex; flex-direction: column; }
+  .preview-panel .panel-header { padding: 12px 16px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 0.9rem; color: var(--text2); text-transform: uppercase; letter-spacing: 0.05em; }
+  .preview-container { flex: 1; display: flex; align-items: center; justify-content: center; padding: 12px; min-height: 360px; position: relative; }
+  .preview-container img { max-width: 100%; max-height: 500px; border-radius: var(--radius-sm); object-fit: contain; }
+  .preview-placeholder { color: var(--text2); text-align: center; }
+  .preview-placeholder svg { width: 48px; height: 48px; margin-bottom: 8px; opacity: 0.4; }
+
+  .editor-panel { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); display: flex; flex-direction: column; }
+  .editor-panel .panel-header { padding: 12px 16px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 0.9rem; color: var(--text2); text-transform: uppercase; letter-spacing: 0.05em; }
+
+  .tabs { display: flex; border-bottom: 1px solid var(--border); overflow-x: auto; }
+  .tab-btn {
+    padding: 10px 16px; background: none; border: none; color: var(--text2); cursor: pointer;
+    font-size: 0.85rem; font-weight: 500; white-space: nowrap;
+    border-bottom: 2px solid transparent; transition: all 0.15s;
+    font-family: inherit;
+  }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-content { display: none; padding: 16px; overflow-y: auto; max-height: 560px; }
+  .tab-content.active { display: block; }
+
+  .field-group { margin-bottom: 14px; }
+  .field-group:last-child { margin-bottom: 0; }
+  .field-label { display: block; font-size: 0.8rem; font-weight: 500; color: var(--text2); margin-bottom: 4px; }
+  .field-row { display: flex; gap: 8px; align-items: center; }
+  .field-row > * { flex: 1; }
+  .field-row .field-group { margin-bottom: 0; flex: 1; }
+  select, input[type="text"], input[type="number"], input[type="datetime-local"], input[type="date"] {
+    width: 100%; padding: 8px 10px; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); color: var(--text); font-size: 0.85rem;
+    transition: border-color 0.15s; font-family: inherit;
+  }
+  select:focus, input:focus { outline: none; border-color: var(--accent); }
+  select option { background: var(--surface2); color: var(--text); }
+  input::placeholder { color: var(--text2); opacity: 0.5; }
+  .field-hint { font-size: 0.75rem; color: var(--text2); margin-top: 2px; opacity: 0.7; }
+
+  .preset-selector { margin-bottom: 18px; }
+  .preset-brand-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+  .brand-chip {
+    padding: 4px 14px; border-radius: 20px; border: 1px solid var(--border);
+    background: transparent; color: var(--text2); cursor: pointer; font-size: 0.8rem;
+    transition: all 0.15s; font-family: inherit; font-weight: 500;
+  }
+  .brand-chip:hover { border-color: var(--accent); color: var(--text); }
+  .brand-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 9px 18px; border-radius: var(--radius-sm); border: none;
+    font-size: 0.85rem; font-weight: 500; cursor: pointer;
+    transition: all 0.15s; font-family: inherit;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { background: var(--border); }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-danger:hover { opacity: 0.85; }
+  .btn-success { background: var(--success); color: #000; }
+  .btn-success:hover { opacity: 0.85; }
+
+  .action-bar { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); justify-content: flex-end; }
+
+  .gps-map-placeholder {
+    width: 100%; height: 140px; background: var(--surface2); border-radius: var(--radius-sm);
+    display: flex; align-items: center; justify-content: center; color: var(--text2); font-size: 0.85rem;
+    border: 1px solid var(--border); margin-top: 8px; cursor: pointer;
+    transition: border-color 0.15s;
+    background-size: cover; background-position: center; background-repeat: no-repeat;
+  }
+  .gps-map-placeholder:hover { border-color: var(--accent); }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 10px 20px; border-radius: var(--radius); color: var(--text);
+    font-size: 0.85rem; box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    z-index: 999; opacity: 0; transition: opacity 0.3s;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .toast.show { opacity: 1; }
+  .toast.success { border-color: var(--success); }
+  .toast.error { border-color: var(--danger); }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text2); }
+
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .flex-between { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  .section-title { font-size: 0.75rem; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.08em; margin: 16px 0 10px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .section-title:first-of-type { margin-top: 0; border-top: none; padding-top: 0; }
+
+  .exif-summary { padding: 0 16px 12px; border-bottom: 1px solid var(--border); }
+  .exif-summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; font-size: 0.8rem; }
+  .exif-summary-item { display: flex; justify-content: space-between; gap: 8px; }
+  .exif-summary-key { color: var(--text2); }
+  .exif-summary-val { color: var(--text); text-align: right; word-break: break-all; }
+
+  .loading-bar {
+    height: 3px; background: var(--accent); border-radius: 2px;
+    animation: loadBar 1.5s ease-in-out infinite;
+    width: 0%;
+  }
+  @keyframes loadBar {
+    0% { width: 0%; margin-left: 0; }
+    50% { width: 60%; margin-left: 20%; }
+    100% { width: 0%; margin-left: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+  <div class="header">
+    <div>
+      <h1>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        EXIF 编辑器
+      </h1>
+      <div class="header-sub">修改照片的 EXIF 信息 — 支持全部图片格式（PNG / WebP / JPEG / GIF / BMP）</div>
+    </div>
+  </div>
+
+  <div class="upload-zone" id="uploadZone">
+    <input type="file" id="fileInput" accept="image/*">
+    <div id="uploadPrompt">
+      <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      <div class="upload-text">点击或拖拽上传照片</div>
+      <div class="upload-hint">支持任意格式（PNG / WebP / JPEG / GIF / BMP / TIFF），输出统一为高质量 JPEG</div>
+    </div>
+    <div id="previewArea" style="display:none">
+      <img id="previewImage" alt="Preview">
+      <div class="loading-bar" id="loadingBar" style="display:none"></div>
+    </div>
+  </div>
+
+  <div id="exifSummary" class="exif-summary" style="display:none; margin-top: 12px; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border);">
+    <div class="flex-between" style="padding: 10px 12px 6px;">
+      <span style="font-size: 0.8rem; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.05em;">原始 EXIF 摘要</span>
+    </div>
+    <div class="exif-summary-grid" id="exifSummaryGrid" style="padding: 0 12px 10px;"></div>
+  </div>
+
+  <div class="main-grid">
+    <div class="preview-panel">
+      <div class="panel-header">照片预览</div>
+      <div class="preview-container" id="previewContainer">
+        <div class="preview-placeholder" id="previewPlaceholder">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          <div>上传照片后显示预览</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="editor-panel" id="editorPanel">
+      <div class="panel-header">EXIF 编辑</div>
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="device">📱 设备信息</button>
+        <button class="tab-btn" data-tab="photo">📷 拍摄参数</button>
+        <button class="tab-btn" data-tab="gps">📍 位置信息</button>
+      </div>
+
+      <div class="tab-content active" id="tab-device">
+        <div class="preset-selector">
+          <div class="field-label">选择设备预设</div>
+          <div class="preset-brand-row" id="brandChips"></div>
+          <select id="presetModel" onchange="applyPreset()">
+            <option value="">— 请先选择品牌 —</option>
+          </select>
+        </div>
+        <div class="section-title">设备详情</div>
+        <div class="field-group">
+          <label class="field-label">制造商 (Make)</label>
+          <input type="text" id="fMake" placeholder="例: Apple">
+        </div>
+        <div class="field-group">
+          <label class="field-label">型号 (Model)</label>
+          <input type="text" id="fModel" placeholder="例: iPhone 16 Pro Max">
+        </div>
+        <div class="field-group">
+          <label class="field-label">软件版本 (Software)</label>
+          <input type="text" id="fSoftware" placeholder="例: 18.0">
+        </div>
+        <div class="field-group">
+          <label class="field-label">镜头信息 (Lens)</label>
+          <input type="text" id="fLens" placeholder="例: iPhone 16 Pro Max back triple camera 6.86mm f/1.78">
+        </div>
+      </div>
+
+      <div class="tab-content" id="tab-photo">
+        <div class="flex-between" style="margin-bottom:6px;">
+          <div class="section-title" style="margin:0; border:none; padding:0;">拍摄时间</div>
+          <button class="btn btn-secondary" onclick="randomAllPhotoParams()" style="font-size:0.75rem; padding:4px 10px;">🎲 随机填充全部参数</button>
+        </div>
+        <div class="field-group">
+          <label class="field-label">拍摄日期时间</label>
+          <input type="datetime-local" id="fDateTime">
+          <div class="field-hint">EXIF 将存储为 "YYYY:MM:DD HH:MM:SS" 格式</div>
+        </div>
+        <div class="section-title">相机参数</div>
+        <div class="field-row">
+          <div class="field-group">
+            <label class="field-label">光圈 (FNumber)</label>
+            <input type="number" step="0.01" min="0.5" max="64" id="fAperture" placeholder="例: 1.78">
+          </div>
+          <div class="field-group">
+            <label class="field-label">快门速度</label>
+            <input type="text" id="fShutter" placeholder="例: 1/120 或 0.008">
+            <div class="field-hint">格式: 1/120 或小数</div>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field-group">
+            <label class="field-label">ISO 感光度</label>
+            <input type="number" step="1" min="0" id="fISO" placeholder="例: 200">
+          </div>
+          <div class="field-group">
+            <label class="field-label">焦距 (mm)</label>
+            <input type="number" step="0.01" min="0" id="fFocal" placeholder="例: 6.86">
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field-group">
+            <label class="field-label">曝光补偿 (EV)</label>
+            <input type="number" step="0.1" id="fExposureBias" placeholder="例: 0.0">
+          </div>
+          <div class="field-group">
+            <label class="field-label">35mm 等效焦距</label>
+            <input type="number" step="1" min="0" id="fFocal35" placeholder="例: 24">
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field-group">
+            <label class="field-label">数字变焦倍率</label>
+            <input type="number" step="0.01" min="0" id="fDigitalZoom" placeholder="例: 1.0">
+          </div>
+          <div class="field-group">
+            <label class="field-label">白平衡</label>
+            <select id="fWhiteBalance">
+              <option value="">— 不设置 —</option>
+              <option value="0">自动</option>
+              <option value="1">日光</option>
+              <option value="2">阴天</option>
+              <option value="3">白炽灯</option>
+              <option value="4">荧光灯</option>
+              <option value="5">闪光灯</option>
+              <option value="6">自定义</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field-group">
+            <label class="field-label">测光模式</label>
+            <select id="fMeteringMode">
+              <option value="">— 不设置 —</option>
+              <option value="0">未知</option>
+              <option value="1">平均测光</option>
+              <option value="2">中央重点测光</option>
+              <option value="3">点测光</option>
+              <option value="4">多区域测光</option>
+              <option value="5">局部测光</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label class="field-label">闪光灯</label>
+            <select id="fFlash">
+              <option value="">— 不设置 —</option>
+              <option value="0">未闪光</option>
+              <option value="1">闪光</option>
+              <option value="5">闪光 (检测到回光)</option>
+              <option value="7">闪光 (强制)</option>
+              <option value="16">未闪光 (强制)</option>
+              <option value="24">自动模式</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-content" id="tab-gps">
+        <div class="field-row">
+          <div class="field-group">
+            <label class="field-label">纬度</label>
+            <input type="number" step="0.000001" min="-90" max="90" id="fLat" placeholder="例: 22.5431">
+          </div>
+          <div class="field-group" style="flex: 0.4">
+            <label class="field-label">方向</label>
+            <select id="fLatRef">
+              <option value="N">北纬 N</option>
+              <option value="S">南纬 S</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field-group">
+            <label class="field-label">经度</label>
+            <input type="number" step="0.000001" min="-180" max="180" id="fLng" placeholder="例: 114.0579">
+          </div>
+          <div class="field-group" style="flex: 0.4">
+            <label class="field-label">方向</label>
+            <select id="fLngRef">
+              <option value="E">东经 E</option>
+              <option value="W">西经 W</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-group">
+          <label class="field-label">海拔 (米)</label>
+          <input type="number" step="0.1" id="fAltitude" placeholder="例: 50.0">
+        </div>
+        <div class="field-group">
+          <label class="field-label">GPS 日期</label>
+          <input type="date" id="fGpsDate">
+          <div class="field-hint">如未设置则使用拍摄日期</div>
+        </div>
+        <div class="gps-map-placeholder" id="gpsMapLink" onclick="openGpsMap()" title="点击在 OpenStreetMap 中打开">
+          <span id="gpsMapText">设置坐标后点击可在地图中查看</span>
+        </div>
+        <div style="margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap;">
+          <button class="btn btn-secondary" onclick="setRandomGps()">📍 随机坐标</button>
+          <button class="btn btn-secondary" onclick="clearGps()">🗑️ 清空 GPS</button>
+        </div>
+      </div>
+
+      <div class="action-bar">
+        <button class="btn btn-secondary" onclick="resetAll()" id="btnReset">↩️ 重置</button>
+        <button class="btn btn-primary" id="btnDownload" onclick="downloadImage()" disabled>⬇️ 下载修改后的照片</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- piexifjs library (embedded) -->
+<script>!function(){"use strict";var i,n,I={};function S(e){return G(">"+h("B",e.length),e)}function c(e){return G(">"+h("H",e.length),e)}function f(e){return G(">"+h("L",e.length),e)}function D(e,t,a){var i,n,o,r,l=Object.keys(e).length,s=G(">H",[l]),m=-1<["0th","1st"].indexOf(t)?2+12*l+4:2+12*l,p="",y="";for(i in e)"string"==typeof i&&(i=parseInt(i)),"0th"==t&&-1<[34665,34853].indexOf(i)||"Exif"==t&&40965==i||"1st"==t&&-1<[513,514].indexOf(i)||(n=e[i],o=G(">H",[i]),r=g[t][i].type,"number"==typeof n&&(n=[n]),p+=o+G(">H",[b[r]])+(r=function(e,t,a){var i,n,o,r,l="",s="";if("Byte"==t)(i=e.length)<=4?s=S(e)+h("\0",4-i):(s=G(">L",[a]),l=S(e));else if("Short"==t)(i=e.length)<=2?s=c(e)+h("\0\0",2-i):(s=G(">L",[a]),l=c(e));else if("Long"==t)(i=e.length)<=1?s=f(e):(s=G(">L",[a]),l=f(e));else if("Ascii"==t)4<(i=(n=e+"\0").length)?(s=G(">L",[a]),l=n):s=n+h("\0",4-i);else if("Rational"==t){if("number"==typeof e[0])i=1,o=e[0],r=e[1],n=G(">L",[o])+G(">L",[r]);else{i=e.length,n="";for(var m=0;m<i;m++)o=e[m][0],r=e[m][1],n+=G(">L",[o])+G(">L",[r])}s=G(">L",[a]),l=n}else if("SRational"==t){if("number"==typeof e[0])i=1,o=e[0],r=e[1],n=G(">l",[o])+G(">l",[r]);else{i=e.length,n="";for(m=0;m<i;m++)o=e[m][0],r=e[m][1],n+=G(">l",[o])+G(">l",[r])}s=G(">L",[a]),l=n}else"Undefined"==t&&(4<(i=e.length)?(s=G(">L",[a]),l=e):s=e+h("\0",4-i));return[G(">L",[i]),s,l]}(n,r,8+m+a+y.length))[0]+r[1],y+=r[2]);return[s+p,y]}function o(e){var t;if("ÿØ"==e.slice(0,2))t=function(e){for(var t,a=0;a<e.length;a++)if("ÿá"==(t=e[a]).slice(0,2)&&"Exif\0\0"==t.slice(4,10))return t;return null}(A(e)),this.tiftag=t?t.slice(10):null;else if(-1<["II","MM"].indexOf(e.slice(0,2)))this.tiftag=e;else{if("Exif"!=e.slice(0,4))throw"Given file is neither JPEG nor TIFF.";this.tiftag=e.slice(6)}}function G(e,t){if(!(t instanceof Array))throw"'pack' error. Got invalid type argument.";if(e.length-1!=t.length)throw"'pack' error. "+(e.length-1)+" marks, "+t.length+" elements.";var a;if("<"==e[0])a=!0;else{if(">"!=e[0])throw"";a=!1}for(var i="",n=1,o=null,r=null,l=null;r=e[n];){if("b"==r.toLowerCase()){if(o=t[n-1],"b"==r&&o<0&&(o+=256),255<o||o<0)throw"'pack' error.";l=String.fromCharCode(o)}else if("H"==r){if(65535<(o=t[n-1])||o<0)throw"'pack' error.";l=String.fromCharCode(Math.floor(o%65536/256))+String.fromCharCode(o%256),a&&(l=l.split("").reverse().join(""))}else{if("l"!=r.toLowerCase())throw"'pack' error.";if(o=t[n-1],"l"==r&&o<0&&(o+=4294967296),4294967295<o||o<0)throw"'pack' error.";l=String.fromCharCode(Math.floor(o/16777216))+String.fromCharCode(Math.floor(o%16777216/65536))+String.fromCharCode(Math.floor(o%65536/256))+String.fromCharCode(o%256),a&&(l=l.split("").reverse().join(""))}i+=l,n+=1}return i}function m(e,t){if("string"!=typeof t)throw"'unpack' error. Got invalid type argument.";for(var a,i=0,n=1;n<e.length;n++)if("b"==e[n].toLowerCase())i+=1;else if("h"==e[n].toLowerCase())i+=2;else{if("l"!=e[n].toLowerCase())throw"'unpack' error. Got invalid mark.";i+=4}if(i!=t.length)throw"'unpack' error. Mismatch between symbol and string length. "+i+":"+t.length;if("<"==e[0])a=!0;else{if(">"!=e[0])throw"'unpack' error.";a=!1}for(var o=[],r=0,l=1,s=null,m=null,p=null,y="";m=e[l];){if("b"==m.toLowerCase())p=1,s=(y=t.slice(r,r+p)).charCodeAt(0),"b"==m&&128<=s&&(s-=256);else if("H"==m)p=2,y=t.slice(r,r+p),a&&(y=y.split("").reverse().join("")),s=256*y.charCodeAt(0)+y.charCodeAt(1);else{if("l"!=m.toLowerCase())throw"'unpack' error. "+m;p=4,y=t.slice(r,r+p),a&&(y=y.split("").reverse().join("")),s=16777216*y.charCodeAt(0)+65536*y.charCodeAt(1)+256*y.charCodeAt(2)+y.charCodeAt(3),"l"==m&&2147483648<=s&&(s-=4294967296)}o.push(s),r+=p,l+=1}return o}function h(e,t){for(var a="",i=0;i<t;i++)a+=e;return a}function A(e){if("ÿØ"!=e.slice(0,2))throw"Given data isn't JPEG.";for(var t=2,a=["ÿØ"];;){if("ÿÚ"==e.slice(t,t+2)){a.push(e.slice(t));break}var i=t+m(">H",e.slice(t+2,t+4))[0]+2;if(a.push(e.slice(t,i)),(t=i)>=e.length)throw"Wrong JPEG data."}return a}I.version="1.0.4",I.remove=function(e){var t=!1;if("ÿØ"!=e.slice(0,2)){if("data:image/jpeg;base64,"!=e.slice(0,23)&&"data:image/jpg;base64,"!=e.slice(0,22))throw"Given data is not jpeg.";e=n(e.split(",")[1]),t=!0}e=A(e).filter(function(e){return!("ÿá"==e.slice(0,2)&&"Exif\0\0"==e.slice(4,10))}).join("");return t&&(e="data:image/jpeg;base64,"+i(e)),e},I.insert=function(e,t){var a=!1;if("Exif\0\0"!=e.slice(0,6))throw"Given data is not exif.";if("ÿØ"!=t.slice(0,2)){if("data:image/jpeg;base64,"!=t.slice(0,23)&&"data:image/jpg;base64,"!=t.slice(0,22))throw"Given data is not jpeg.";t=n(t.split(",")[1]),a=!0}e="ÿá"+G(">H",[e.length+2])+e,e=function(e,t){"ÿà"==e[1].slice(0,2)&&"ÿá"==e[2].slice(0,2)&&"Exif\0\0"==e[2].slice(4,10)?e=t?(e[2]=t,["ÿØ"].concat(e.slice(2))):null==t?e.slice(0,2).concat(e.slice(3)):e.slice(0).concat(e.slice(2)):"ÿà"==e[1].slice(0,2)?t&&(e[1]=t):"ÿá"==e[1].slice(0,2)&&"Exif\0\0"==e[1].slice(4,10)?t?e[1]=t:null==t&&(e=e.slice(0).concat(e.slice(2))):t&&(e=[e[0],t].concat(e.slice(1)));return e.join("")}(A(t),e);return a&&(e="data:image/jpeg;base64,"+i(e)),e},I.load=function(e){if("string"!=typeof e)throw"'load' gots invalid type argument.";if("ÿØ"==e.slice(0,2))i=e;else if("data:image/jpeg;base64,"==e.slice(0,23)||"data:image/jpg;base64,"==e.slice(0,22))i=n(e.split(",")[1]);else{if("Exif"!=e.slice(0,4))throw"'load' gots invalid file data.";i=e.slice(6)}var t={"0th":{},Exif:{},GPS:{},Interop:{},"1st":{},thumbnail:null},a=new o(i);if(null===a.tiftag)return t;"II"==a.tiftag.slice(0,2)?a.endian_mark="<":a.endian_mark=">";e=m(a.endian_mark+"L",a.tiftag.slice(4,8))[0];t["0th"]=a.get_ifd(e,"0th");var i=t["0th"].first_ifd_pointer;return delete t["0th"].first_ifd_pointer,34665 in t["0th"]&&(e=t["0th"][34665],t.Exif=a.get_ifd(e,"Exif")),34853 in t["0th"]&&(e=t["0th"][34853],t.GPS=a.get_ifd(e,"GPS")),40965 in t.Exif&&(e=t.Exif[40965],t.Interop=a.get_ifd(e,"Interop")),"\0\0\0\0"!=i&&(e=m(a.endian_mark+"L",i)[0],t["1st"]=a.get_ifd(e,"1st"),513 in t["1st"]&&514 in t["1st"]&&(e=t["1st"][513]+t["1st"][514],e=a.tiftag.slice(t["1st"][513],e),t.thumbnail=e)),t},I.dump=function(e){var t,a=(h=e,JSON.parse(JSON.stringify(h))),i=!1,n=!1,o=!1,r=!1,l="0th"in a?a["0th"]:{};"Exif"in a&&Object.keys(a.Exif).length||"Interop"in a&&Object.keys(a.Interop).length?(l[34665]=1,i=!0,t=a.Exif,"Interop"in a&&Object.keys(a.Interop).length?(t[40965]=1,o=!0,R=a.Interop):-1<Object.keys(t).indexOf(I.ExifIFD.InteroperabilityTag.toString())&&delete t[40965]):-1<Object.keys(l).indexOf(I.ImageIFD.ExifTag.toString())&&delete l[34665],"GPS"in a&&Object.keys(a.GPS).length?(l[I.ImageIFD.GPSTag]=1,n=!0,C=a.GPS):-1<Object.keys(l).indexOf(I.ImageIFD.GPSTag.toString())&&delete l[I.ImageIFD.GPSTag],"1st"in a&&"thumbnail"in a&&null!=a.thumbnail&&(r=!0,a["1st"][513]=1,a["1st"][514]=1,L=a["1st"]);var s,m=D(l,"0th",0),p=m[0].length+12*i+12*n+4+m[1].length,y="",S=0,c="",f=0,e="",h=0,l="";if(i&&(S=(s=D(t,"Exif",p))[0].length+12*o+s[1].length),n&&(f=(c=D(C,"GPS",p+S).join("")).length),o&&(h=(e=D(R,"Interop",p+S+f).join("")).length),r){var g,d=D(L,"1st",p+S+f+h);if(64e3<(g=function(e){var t=A(e);for(;"ÿà"<=t[1].slice(0,2)&&t[1].slice(0,2)<="ÿï";)t=[t[0]].concat(t.slice(2));return t.join("")}(a.thumbnail)).length)throw"Given thumbnail is too large. max 64kB"}var u,P,C="",R="",L="",a="\0\0\0\0";i&&(u=G(">L",[P=8+p]),C=G(">H",[34665])+G(">H",[b.Long])+G(">L",[1])+u),n&&(u=G(">L",[P=8+p+S]),R=G(">H",[34853])+G(">H",[b.Long])+G(">L",[1])+u),o&&(u=G(">L",[P=8+p+S+f]),L=G(">H",[40965])+G(">H",[b.Long])+G(">L",[1])+u),r&&(a=G(">L",[P=8+p+S+f+h]),h="\x02\x01\0\x04\0\0\0\x01"+G(">L",[P+d[0].length+24+4+d[1].length]),P="\x02\x02\0\x04\0\0\0\x01"+G(">L",[g.length]),l=d[0]+h+P+"\0\0\0\0"+d[1]+g);m=m[0]+C+R+a+m[1];return i&&(y=s[0]+L+s[1]),"Exif\0\0MM\0*\0\0\0\b"+m+y+c+e+l},o.prototype={get_ifd:function(e,t){for(var a={},i=m(this.endian_mark+"H",this.tiftag.slice(e,e+2))[0],n=e+2,o=-1<["0th","1st"].indexOf(t)?"Image":t,r=0;r<i;r++){e=n+12*r;var l=m(this.endian_mark+"H",this.tiftag.slice(e,e+2))[0],s=[m(this.endian_mark+"H",this.tiftag.slice(e+2,e+4))[0],m(this.endian_mark+"L",this.tiftag.slice(e+4,e+8))[0],this.tiftag.slice(e+8,e+12)];l in g[o]&&(a[l]=this.convert_value(s))}return"0th"==t&&(e=n+12*i,a.first_ifd_pointer=this.tiftag.slice(e,e+4)),a},convert_value:function(e){var t,a=null,i=e[0],n=e[1],e=e[2];if(1==i)a=4<n?(t=m(this.endian_mark+"L",e)[0],m(this.endian_mark+h("B",n),this.tiftag.slice(t,t+n))):m(this.endian_mark+h("B",n),e.slice(0,n));else if(2==i)a=4<n?(t=m(this.endian_mark+"L",e)[0],this.tiftag.slice(t,t+n-1)):e.slice(0,n-1);else if(3==i)a=2<n?(t=m(this.endian_mark+"L",e)[0],m(this.endian_mark+h("H",n),this.tiftag.slice(t,t+2*n))):m(this.endian_mark+h("H",n),e.slice(0,2*n));else if(4==i)a=1<n?(t=m(this.endian_mark+"L",e)[0],m(this.endian_mark+h("L",n),this.tiftag.slice(t,t+4*n))):m(this.endian_mark+h("L",n),e);else if(5==i)if(t=m(this.endian_mark+"L",e)[0],1<n){a=[];for(var o=0;o<n;o++)a.push([m(this.endian_mark+"L",this.tiftag.slice(t+8*o,t+4+8*o))[0],m(this.endian_mark+"L",this.tiftag.slice(t+4+8*o,t+8+8*o))[0]])}else a=[m(this.endian_mark+"L",this.tiftag.slice(t,t+4))[0],m(this.endian_mark+"L",this.tiftag.slice(t+4,t+8))[0]];else if(7==i)a=4<n?(t=m(this.endian_mark+"L",e)[0],this.tiftag.slice(t,t+n)):e.slice(0,n);else{if(10!=i)throw"Exif might be wrong. Got incorrect value type to decode. type:"+i;if(t=m(this.endian_mark+"L",e)[0],1<n){a=[];for(o=0;o<n;o++)a.push([m(this.endian_mark+"l",this.tiftag.slice(t+8*o,t+4+8*o))[0],m(this.endian_mark+"l",this.tiftag.slice(t+4+8*o,t+8+8*o))[0]])}else a=[m(this.endian_mark+"l",this.tiftag.slice(t,t+4))[0],m(this.endian_mark+"l",this.tiftag.slice(t+4,t+8))[0]]}return a instanceof Array&&1==a.length?a[0]:a}},"undefined"!=typeof window&&"function"==typeof window.btoa&&(i=window.btoa),void 0===i&&(i=function(e){for(var t,a,i,n,o,r,l="",s=0,m="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";s<e.length;)i=(r=e.charCodeAt(s++))>>2,n=(3&r)<<4|(t=e.charCodeAt(s++))>>4,o=(15&t)<<2|(a=e.charCodeAt(s++))>>6,r=63&a,isNaN(t)?o=r=64:isNaN(a)&&(r=64),l=l+m.charAt(i)+m.charAt(n)+m.charAt(o)+m.charAt(r);return l}),"undefined"!=typeof window&&"function"==typeof window.atob&&(n=window.atob),void 0===n&&(n=function(e){var t,a,i,n,o,r="",l=0,s="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";for(e=e.replace(/[^A-Za-z0-9\+\/\=]/g,"");l<e.length;)t=s.indexOf(e.charAt(l++))<<2|(i=s.indexOf(e.charAt(l++)))>>4,a=(15&i)<<4|(n=s.indexOf(e.charAt(l++)))>>2,i=(3&n)<<6|(o=s.indexOf(e.charAt(l++))),r+=String.fromCharCode(t),64!=n&&(r+=String.fromCharCode(a)),64!=o&&(r+=String.fromCharCode(i));return r});var b={Byte:1,Ascii:2,Short:3,Long:4,Rational:5,Undefined:7,SLong:9,SRational:10},g={Image:{11:{name:"ProcessingSoftware",type:"Ascii"},254:{name:"NewSubfileType",type:"Long"},255:{name:"SubfileType",type:"Short"},256:{name:"ImageWidth",type:"Long"},257:{name:"ImageLength",type:"Long"},258:{name:"BitsPerSample",type:"Short"},259:{name:"Compression",type:"Short"},262:{name:"PhotometricInterpretation",type:"Short"},263:{name:"Threshholding",type:"Short"},264:{name:"CellWidth",type:"Short"},265:{name:"CellLength",type:"Short"},266:{name:"FillOrder",type:"Short"},269:{name:"DocumentName",type:"Ascii"},270:{name:"ImageDescription",type:"Ascii"},271:{name:"Make",type:"Ascii"},272:{name:"Model",type:"Ascii"},273:{name:"StripOffsets",type:"Long"},274:{name:"Orientation",type:"Short"},277:{name:"SamplesPerPixel",type:"Short"},278:{name:"RowsPerStrip",type:"Long"},279:{name:"StripByteCounts",type:"Long"},282:{name:"XResolution",type:"Rational"},283:{name:"YResolution",type:"Rational"},284:{name:"PlanarConfiguration",type:"Short"},290:{name:"GrayResponseUnit",type:"Short"},291:{name:"GrayResponseCurve",type:"Short"},292:{name:"T4Options",type:"Long"},293:{name:"T6Options",type:"Long"},296:{name:"ResolutionUnit",type:"Short"},301:{name:"TransferFunction",type:"Short"},305:{name:"Software",type:"Ascii"},306:{name:"DateTime",type:"Ascii"},315:{name:"Artist",type:"Ascii"},316:{name:"HostComputer",type:"Ascii"},317:{name:"Predictor",type:"Short"},318:{name:"WhitePoint",type:"Rational"},319:{name:"PrimaryChromaticities",type:"Rational"},320:{name:"ColorMap",type:"Short"},321:{name:"HalftoneHints",type:"Short"},322:{name:"TileWidth",type:"Short"},323:{name:"TileLength",type:"Short"},324:{name:"TileOffsets",type:"Short"},325:{name:"TileByteCounts",type:"Short"},330:{name:"SubIFDs",type:"Long"},332:{name:"InkSet",type:"Short"},333:{name:"InkNames",type:"Ascii"},334:{name:"NumberOfInks",type:"Short"},336:{name:"DotRange",type:"Byte"},337:{name:"TargetPrinter",type:"Ascii"},338:{name:"ExtraSamples",type:"Short"},339:{name:"SampleFormat",type:"Short"},340:{name:"SMinSampleValue",type:"Short"},341:{name:"SMaxSampleValue",type:"Short"},342:{name:"TransferRange",type:"Short"},343:{name:"ClipPath",type:"Byte"},344:{name:"XClipPathUnits",type:"Long"},345:{name:"YClipPathUnits",type:"Long"},346:{name:"Indexed",type:"Short"},347:{name:"JPEGTables",type:"Undefined"},351:{name:"OPIProxy",type:"Short"},512:{name:"JPEGProc",type:"Long"},513:{name:"JPEGInterchangeFormat",type:"Long"},514:{name:"JPEGInterchangeFormatLength",type:"Long"},515:{name:"JPEGRestartInterval",type:"Short"},517:{name:"JPEGLosslessPredictors",type:"Short"},518:{name:"JPEGPointTransforms",type:"Short"},519:{name:"JPEGQTables",type:"Long"},520:{name:"JPEGDCTables",type:"Long"},521:{name:"JPEGACTables",type:"Long"},529:{name:"YCbCrCoefficients",type:"Rational"},530:{name:"YCbCrSubSampling",type:"Short"},531:{name:"YCbCrPositioning",type:"Short"},532:{name:"ReferenceBlackWhite",type:"Rational"},700:{name:"XMLPacket",type:"Byte"},18246:{name:"Rating",type:"Short"},18249:{name:"RatingPercent",type:"Short"},32781:{name:"ImageID",type:"Ascii"},33421:{name:"CFARepeatPatternDim",type:"Short"},33422:{name:"CFAPattern",type:"Byte"},33423:{name:"BatteryLevel",type:"Rational"},33432:{name:"Copyright",type:"Ascii"},33434:{name:"ExposureTime",type:"Rational"},34377:{name:"ImageResources",type:"Byte"},34665:{name:"ExifTag",type:"Long"},34675:{name:"InterColorProfile",type:"Undefined"},34853:{name:"GPSTag",type:"Long"},34857:{name:"Interlace",type:"Short"},34858:{name:"TimeZoneOffset",type:"Long"},34859:{name:"SelfTimerMode",type:"Short"},37387:{name:"FlashEnergy",type:"Rational"},37388:{name:"SpatialFrequencyResponse",type:"Undefined"},37389:{name:"Noise",type:"Undefined"},37390:{name:"FocalPlaneXResolution",type:"Rational"},37391:{name:"FocalPlaneYResolution",type:"Rational"},37392:{name:"FocalPlaneResolutionUnit",type:"Short"},37393:{name:"ImageNumber",type:"Long"},37394:{name:"SecurityClassification",type:"Ascii"},37395:{name:"ImageHistory",type:"Ascii"},37397:{name:"ExposureIndex",type:"Rational"},37398:{name:"TIFFEPStandardID",type:"Byte"},37399:{name:"SensingMethod",type:"Short"},40091:{name:"XPTitle",type:"Byte"},40092:{name:"XPComment",type:"Byte"},40093:{name:"XPAuthor",type:"Byte"},40094:{name:"XPKeywords",type:"Byte"},40095:{name:"XPSubject",type:"Byte"},50341:{name:"PrintImageMatching",type:"Undefined"},50706:{name:"DNGVersion",type:"Byte"},50707:{name:"DNGBackwardVersion",type:"Byte"},50708:{name:"UniqueCameraModel",type:"Ascii"},50709:{name:"LocalizedCameraModel",type:"Byte"},50710:{name:"CFAPlaneColor",type:"Byte"},50711:{name:"CFALayout",type:"Short"},50712:{name:"LinearizationTable",type:"Short"},50713:{name:"BlackLevelRepeatDim",type:"Short"},50714:{name:"BlackLevel",type:"Rational"},50715:{name:"BlackLevelDeltaH",type:"SRational"},50716:{name:"BlackLevelDeltaV",type:"SRational"},50717:{name:"WhiteLevel",type:"Short"},50718:{name:"DefaultScale",type:"Rational"},50719:{name:"DefaultCropOrigin",type:"Short"},50720:{name:"DefaultCropSize",type:"Short"},50721:{name:"ColorMatrix1",type:"SRational"},50722:{name:"ColorMatrix2",type:"SRational"},50723:{name:"CameraCalibration1",type:"SRational"},50724:{name:"CameraCalibration2",type:"SRational"},50725:{name:"ReductionMatrix1",type:"SRational"},50726:{name:"ReductionMatrix2",type:"SRational"},50727:{name:"AnalogBalance",type:"Rational"},50728:{name:"AsShotNeutral",type:"Short"},50729:{name:"AsShotWhiteXY",type:"Rational"},50730:{name:"BaselineExposure",type:"SRational"},50731:{name:"BaselineNoise",type:"Rational"},50732:{name:"BaselineSharpness",type:"Rational"},50733:{name:"BayerGreenSplit",type:"Long"},50734:{name:"LinearResponseLimit",type:"Rational"},50735:{name:"CameraSerialNumber",type:"Ascii"},50736:{name:"LensInfo",type:"Rational"},50737:{name:"ChromaBlurRadius",type:"Rational"},50738:{name:"AntiAliasStrength",type:"Rational"},50739:{name:"ShadowScale",type:"SRational"},50740:{name:"DNGPrivateData",type:"Byte"},50741:{name:"MakerNoteSafety",type:"Short"},50778:{name:"CalibrationIlluminant1",type:"Short"},50779:{name:"CalibrationIlluminant2",type:"Short"},50780:{name:"BestQualityScale",type:"Rational"},50781:{name:"RawDataUniqueID",type:"Byte"},50827:{name:"OriginalRawFileName",type:"Byte"},50828:{name:"OriginalRawFileData",type:"Undefined"},50829:{name:"ActiveArea",type:"Short"},50830:{name:"MaskedAreas",type:"Short"},50831:{name:"AsShotICCProfile",type:"Undefined"},50832:{name:"AsShotPreProfileMatrix",type:"SRational"},50833:{name:"CurrentICCProfile",type:"Undefined"},50834:{name:"CurrentPreProfileMatrix",type:"SRational"},50879:{name:"ColorimetricReference",type:"Short"},50931:{name:"CameraCalibrationSignature",type:"Byte"},50932:{name:"ProfileCalibrationSignature",type:"Byte"},50934:{name:"AsShotProfileName",type:"Byte"},50935:{name:"NoiseReductionApplied",type:"Rational"},50936:{name:"ProfileName",type:"Byte"},50937:{name:"ProfileHueSatMapDims",type:"Long"},50938:{name:"ProfileHueSatMapData1",type:"Float"},50939:{name:"ProfileHueSatMapData2",type:"Float"},50940:{name:"ProfileToneCurve",type:"Float"},50941:{name:"ProfileEmbedPolicy",type:"Long"},50942:{name:"ProfileCopyright",type:"Byte"},50964:{name:"ForwardMatrix1",type:"SRational"},50965:{name:"ForwardMatrix2",type:"SRational"},50966:{name:"PreviewApplicationName",type:"Byte"},50967:{name:"PreviewApplicationVersion",type:"Byte"},50968:{name:"PreviewSettingsName",type:"Byte"},50969:{name:"PreviewSettingsDigest",type:"Byte"},50970:{name:"PreviewColorSpace",type:"Long"},50971:{name:"PreviewDateTime",type:"Ascii"},50972:{name:"RawImageDigest",type:"Undefined"},50973:{name:"OriginalRawFileDigest",type:"Undefined"},50974:{name:"SubTileBlockSize",type:"Long"},50975:{name:"RowInterleaveFactor",type:"Long"},50981:{name:"ProfileLookTableDims",type:"Long"},50982:{name:"ProfileLookTableData",type:"Float"},51008:{name:"OpcodeList1",type:"Undefined"},51009:{name:"OpcodeList2",type:"Undefined"},51022:{name:"OpcodeList3",type:"Undefined"}},Exif:{33434:{name:"ExposureTime",type:"Rational"},33437:{name:"FNumber",type:"Rational"},34850:{name:"ExposureProgram",type:"Short"},34852:{name:"SpectralSensitivity",type:"Ascii"},34855:{name:"ISOSpeedRatings",type:"Short"},34856:{name:"OECF",type:"Undefined"},34864:{name:"SensitivityType",type:"Short"},34865:{name:"StandardOutputSensitivity",type:"Long"},34866:{name:"RecommendedExposureIndex",type:"Long"},34867:{name:"ISOSpeed",type:"Long"},34868:{name:"ISOSpeedLatitudeyyy",type:"Long"},34869:{name:"ISOSpeedLatitudezzz",type:"Long"},36864:{name:"ExifVersion",type:"Undefined"},36867:{name:"DateTimeOriginal",type:"Ascii"},36868:{name:"DateTimeDigitized",type:"Ascii"},37121:{name:"ComponentsConfiguration",type:"Undefined"},37122:{name:"CompressedBitsPerPixel",type:"Rational"},37377:{name:"ShutterSpeedValue",type:"SRational"},37378:{name:"ApertureValue",type:"Rational"},37379:{name:"BrightnessValue",type:"SRational"},37380:{name:"ExposureBiasValue",type:"SRational"},37381:{name:"MaxApertureValue",type:"Rational"},37382:{name:"SubjectDistance",type:"Rational"},37383:{name:"MeteringMode",type:"Short"},37384:{name:"LightSource",type:"Short"},37385:{name:"Flash",type:"Short"},37386:{name:"FocalLength",type:"Rational"},37396:{name:"SubjectArea",type:"Short"},37500:{name:"MakerNote",type:"Undefined"},37510:{name:"UserComment",type:"Ascii"},37520:{name:"SubSecTime",type:"Ascii"},37521:{name:"SubSecTimeOriginal",type:"Ascii"},37522:{name:"SubSecTimeDigitized",type:"Ascii"},40960:{name:"FlashpixVersion",type:"Undefined"},40961:{name:"ColorSpace",type:"Short"},40962:{name:"PixelXDimension",type:"Long"},40963:{name:"PixelYDimension",type:"Long"},40964:{name:"RelatedSoundFile",type:"Ascii"},40965:{name:"InteroperabilityTag",type:"Long"},41483:{name:"FlashEnergy",type:"Rational"},41484:{name:"SpatialFrequencyResponse",type:"Undefined"},41486:{name:"FocalPlaneXResolution",type:"Rational"},41487:{name:"FocalPlaneYResolution",type:"Rational"},41488:{name:"FocalPlaneResolutionUnit",type:"Short"},41492:{name:"SubjectLocation",type:"Short"},41493:{name:"ExposureIndex",type:"Rational"},41495:{name:"SensingMethod",type:"Short"},41728:{name:"FileSource",type:"Undefined"},41729:{name:"SceneType",type:"Undefined"},41730:{name:"CFAPattern",type:"Undefined"},41985:{name:"CustomRendered",type:"Short"},41986:{name:"ExposureMode",type:"Short"},41987:{name:"WhiteBalance",type:"Short"},41988:{name:"DigitalZoomRatio",type:"Rational"},41989:{name:"FocalLengthIn35mmFilm",type:"Short"},41990:{name:"SceneCaptureType",type:"Short"},41991:{name:"GainControl",type:"Short"},41992:{name:"Contrast",type:"Short"},41993:{name:"Saturation",type:"Short"},41994:{name:"Sharpness",type:"Short"},41995:{name:"DeviceSettingDescription",type:"Undefined"},41996:{name:"SubjectDistanceRange",type:"Short"},42016:{name:"ImageUniqueID",type:"Ascii"},42032:{name:"CameraOwnerName",type:"Ascii"},42033:{name:"BodySerialNumber",type:"Ascii"},42034:{name:"LensSpecification",type:"Rational"},42035:{name:"LensMake",type:"Ascii"},42036:{name:"LensModel",type:"Ascii"},42037:{name:"LensSerialNumber",type:"Ascii"},42240:{name:"Gamma",type:"Rational"}},GPS:{0:{name:"GPSVersionID",type:"Byte"},1:{name:"GPSLatitudeRef",type:"Ascii"},2:{name:"GPSLatitude",type:"Rational"},3:{name:"GPSLongitudeRef",type:"Ascii"},4:{name:"GPSLongitude",type:"Rational"},5:{name:"GPSAltitudeRef",type:"Byte"},6:{name:"GPSAltitude",type:"Rational"},7:{name:"GPSTimeStamp",type:"Rational"},8:{name:"GPSSatellites",type:"Ascii"},9:{name:"GPSStatus",type:"Ascii"},10:{name:"GPSMeasureMode",type:"Ascii"},11:{name:"GPSDOP",type:"Rational"},12:{name:"GPSSpeedRef",type:"Ascii"},13:{name:"GPSSpeed",type:"Rational"},14:{name:"GPSTrackRef",type:"Ascii"},15:{name:"GPSTrack",type:"Rational"},16:{name:"GPSImgDirectionRef",type:"Ascii"},17:{name:"GPSImgDirection",type:"Rational"},18:{name:"GPSMapDatum",type:"Ascii"},19:{name:"GPSDestLatitudeRef",type:"Ascii"},20:{name:"GPSDestLatitude",type:"Rational"},21:{name:"GPSDestLongitudeRef",type:"Ascii"},22:{name:"GPSDestLongitude",type:"Rational"},23:{name:"GPSDestBearingRef",type:"Ascii"},24:{name:"GPSDestBearing",type:"Rational"},25:{name:"GPSDestDistanceRef",type:"Ascii"},26:{name:"GPSDestDistance",type:"Rational"},27:{name:"GPSProcessingMethod",type:"Undefined"},28:{name:"GPSAreaInformation",type:"Undefined"},29:{name:"GPSDateStamp",type:"Ascii"},30:{name:"GPSDifferential",type:"Short"},31:{name:"GPSHPositioningError",type:"Rational"}},Interop:{1:{name:"InteroperabilityIndex",type:"Ascii"}}};g["0th"]=g.Image,g["1st"]=g.Image,I.TAGS=g,I.ImageIFD={ProcessingSoftware:11,NewSubfileType:254,SubfileType:255,ImageWidth:256,ImageLength:257,BitsPerSample:258,Compression:259,PhotometricInterpretation:262,Threshholding:263,CellWidth:264,CellLength:265,FillOrder:266,DocumentName:269,ImageDescription:270,Make:271,Model:272,StripOffsets:273,Orientation:274,SamplesPerPixel:277,RowsPerStrip:278,StripByteCounts:279,XResolution:282,YResolution:283,PlanarConfiguration:284,GrayResponseUnit:290,GrayResponseCurve:291,T4Options:292,T6Options:293,ResolutionUnit:296,TransferFunction:301,Software:305,DateTime:306,Artist:315,HostComputer:316,Predictor:317,WhitePoint:318,PrimaryChromaticities:319,ColorMap:320,HalftoneHints:321,TileWidth:322,TileLength:323,TileOffsets:324,TileByteCounts:325,SubIFDs:330,InkSet:332,InkNames:333,NumberOfInks:334,DotRange:336,TargetPrinter:337,ExtraSamples:338,SampleFormat:339,SMinSampleValue:340,SMaxSampleValue:341,TransferRange:342,ClipPath:343,XClipPathUnits:344,YClipPathUnits:345,Indexed:346,JPEGTables:347,OPIProxy:351,JPEGProc:512,JPEGInterchangeFormat:513,JPEGInterchangeFormatLength:514,JPEGRestartInterval:515,JPEGLosslessPredictors:517,JPEGPointTransforms:518,JPEGQTables:519,JPEGDCTables:520,JPEGACTables:521,YCbCrCoefficients:529,YCbCrSubSampling:530,YCbCrPositioning:531,ReferenceBlackWhite:532,XMLPacket:700,Rating:18246,RatingPercent:18249,ImageID:32781,CFARepeatPatternDim:33421,CFAPattern:33422,BatteryLevel:33423,Copyright:33432,ExposureTime:33434,ImageResources:34377,ExifTag:34665,InterColorProfile:34675,GPSTag:34853,Interlace:34857,TimeZoneOffset:34858,SelfTimerMode:34859,FlashEnergy:37387,SpatialFrequencyResponse:37388,Noise:37389,FocalPlaneXResolution:37390,FocalPlaneYResolution:37391,FocalPlaneResolutionUnit:37392,ImageNumber:37393,SecurityClassification:37394,ImageHistory:37395,ExposureIndex:37397,TIFFEPStandardID:37398,SensingMethod:37399,XPTitle:40091,XPComment:40092,XPAuthor:40093,XPKeywords:40094,XPSubject:40095,PrintImageMatching:50341,DNGVersion:50706,DNGBackwardVersion:50707,UniqueCameraModel:50708,LocalizedCameraModel:50709,CFAPlaneColor:50710,CFALayout:50711,LinearizationTable:50712,BlackLevelRepeatDim:50713,BlackLevel:50714,BlackLevelDeltaH:50715,BlackLevelDeltaV:50716,WhiteLevel:50717,DefaultScale:50718,DefaultCropOrigin:50719,DefaultCropSize:50720,ColorMatrix1:50721,ColorMatrix2:50722,CameraCalibration1:50723,CameraCalibration2:50724,ReductionMatrix1:50725,ReductionMatrix2:50726,AnalogBalance:50727,AsShotNeutral:50728,AsShotWhiteXY:50729,BaselineExposure:50730,BaselineNoise:50731,BaselineSharpness:50732,BayerGreenSplit:50733,LinearResponseLimit:50734,CameraSerialNumber:50735,LensInfo:50736,ChromaBlurRadius:50737,AntiAliasStrength:50738,ShadowScale:50739,DNGPrivateData:50740,MakerNoteSafety:50741,CalibrationIlluminant1:50778,CalibrationIlluminant2:50779,BestQualityScale:50780,RawDataUniqueID:50781,OriginalRawFileName:50827,OriginalRawFileData:50828,ActiveArea:50829,MaskedAreas:50830,AsShotICCProfile:50831,AsShotPreProfileMatrix:50832,CurrentICCProfile:50833,CurrentPreProfileMatrix:50834,ColorimetricReference:50879,CameraCalibrationSignature:50931,ProfileCalibrationSignature:50932,AsShotProfileName:50934,NoiseReductionApplied:50935,ProfileName:50936,ProfileHueSatMapDims:50937,ProfileHueSatMapData1:50938,ProfileHueSatMapData2:50939,ProfileToneCurve:50940,ProfileEmbedPolicy:50941,ProfileCopyright:50942,ForwardMatrix1:50964,ForwardMatrix2:50965,PreviewApplicationName:50966,PreviewApplicationVersion:50967,PreviewSettingsName:50968,PreviewSettingsDigest:50969,PreviewColorSpace:50970,PreviewDateTime:50971,RawImageDigest:50972,OriginalRawFileDigest:50973,SubTileBlockSize:50974,RowInterleaveFactor:50975,ProfileLookTableDims:50981,ProfileLookTableData:50982,OpcodeList1:51008,OpcodeList2:51009,OpcodeList3:51022,NoiseProfile:51041},I.ExifIFD={ExposureTime:33434,FNumber:33437,ExposureProgram:34850,SpectralSensitivity:34852,ISOSpeedRatings:34855,OECF:34856,SensitivityType:34864,StandardOutputSensitivity:34865,RecommendedExposureIndex:34866,ISOSpeed:34867,ISOSpeedLatitudeyyy:34868,ISOSpeedLatitudezzz:34869,ExifVersion:36864,DateTimeOriginal:36867,DateTimeDigitized:36868,ComponentsConfiguration:37121,CompressedBitsPerPixel:37122,ShutterSpeedValue:37377,ApertureValue:37378,BrightnessValue:37379,ExposureBiasValue:37380,MaxApertureValue:37381,SubjectDistance:37382,MeteringMode:37383,LightSource:37384,Flash:37385,FocalLength:37386,SubjectArea:37396,MakerNote:37500,UserComment:37510,SubSecTime:37520,SubSecTimeOriginal:37521,SubSecTimeDigitized:37522,FlashpixVersion:40960,ColorSpace:40961,PixelXDimension:40962,PixelYDimension:40963,RelatedSoundFile:40964,InteroperabilityTag:40965,FlashEnergy:41483,SpatialFrequencyResponse:41484,FocalPlaneXResolution:41486,FocalPlaneYResolution:41487,FocalPlaneResolutionUnit:41488,SubjectLocation:41492,ExposureIndex:41493,SensingMethod:41495,FileSource:41728,SceneType:41729,CFAPattern:41730,CustomRendered:41985,ExposureMode:41986,WhiteBalance:41987,DigitalZoomRatio:41988,FocalLengthIn35mmFilm:41989,SceneCaptureType:41990,GainControl:41991,Contrast:41992,Saturation:41993,Sharpness:41994,DeviceSettingDescription:41995,SubjectDistanceRange:41996,ImageUniqueID:42016,CameraOwnerName:42032,BodySerialNumber:42033,LensSpecification:42034,LensMake:42035,LensModel:42036,LensSerialNumber:42037,Gamma:42240},I.GPSIFD={GPSVersionID:0,GPSLatitudeRef:1,GPSLatitude:2,GPSLongitudeRef:3,GPSLongitude:4,GPSAltitudeRef:5,GPSAltitude:6,GPSTimeStamp:7,GPSSatellites:8,GPSStatus:9,GPSMeasureMode:10,GPSDOP:11,GPSSpeedRef:12,GPSSpeed:13,GPSTrackRef:14,GPSTrack:15,GPSImgDirectionRef:16,GPSImgDirection:17,GPSMapDatum:18,GPSDestLatitudeRef:19,GPSDestLatitude:20,GPSDestLongitudeRef:21,GPSDestLongitude:22,GPSDestBearingRef:23,GPSDestBearing:24,GPSDestDistanceRef:25,GPSDestDistance:26,GPSProcessingMethod:27,GPSAreaInformation:28,GPSDateStamp:29,GPSDifferential:30,GPSHPositioningError:31},I.InteropIFD={InteroperabilityIndex:1},I.GPSHelper={degToDmsRational:function(e){var t=e%1*60,a=t%1*60;return[[Math.floor(e),1],[Math.floor(t),1],[Math.round(100*a),100]]},dmsRationalToDeg:function(e,t){return("S"===t||"W"===t?-1:1)*e[0][0]/e[0][1]+e[1][0]/e[1][1]/60+e[2][0]/e[2][1]/3600}},"undefined"!=typeof exports?("undefined"!=typeof module&&module.exports&&(exports=module.exports=I),exports.piexif=I):window.piexif=I}();</script>
+
+<script>
+// ============== DEVICE PRESETS ==============
+const PRESETS = {
+  'Apple': {
+    'iPhone 16 Pro Max':        { make: 'Apple', model: 'iPhone 16 Pro Max',        software: '18.0', lens: 'iPhone 16 Pro Max back triple camera 6.86mm f/1.78' },
+    'iPhone 16 Pro':            { make: 'Apple', model: 'iPhone 16 Pro',            software: '18.0', lens: 'iPhone 16 Pro back triple camera 6.86mm f/1.78' },
+    'iPhone 16':                { make: 'Apple', model: 'iPhone 16',                software: '18.0', lens: 'iPhone 16 back dual camera 5.96mm f/1.6' },
+    'iPhone 15 Pro Max':        { make: 'Apple', model: 'iPhone 15 Pro Max',        software: '17.0', lens: 'iPhone 15 Pro Max back triple camera 6.86mm f/1.78' },
+    'iPhone 15 Pro':            { make: 'Apple', model: 'iPhone 15 Pro',            software: '17.0', lens: 'iPhone 15 Pro back triple camera 6.86mm f/1.78' },
+    'iPhone 15':                { make: 'Apple', model: 'iPhone 15',                software: '17.0', lens: 'iPhone 15 back dual camera 5.96mm f/1.6' },
+    'iPhone 14 Pro Max':        { make: 'Apple', model: 'iPhone 14 Pro Max',        software: '16.0', lens: 'iPhone 14 Pro Max back triple camera 6.86mm f/1.78' },
+    'iPhone 14 Pro':            { make: 'Apple', model: 'iPhone 14 Pro',            software: '16.0', lens: 'iPhone 14 Pro back triple camera 6.86mm f/1.78' },
+    'iPhone 14':                { make: 'Apple', model: 'iPhone 14',                software: '16.0', lens: 'iPhone 14 back dual camera 5.96mm f/1.6' },
+    'iPhone SE (3rd gen)':      { make: 'Apple', model: 'iPhone SE (3rd gen)',      software: '16.0', lens: 'iPhone SE (3rd gen) back camera 3.99mm f/1.8' },
+    'iPad Pro 13" (M4)':        { make: 'Apple', model: 'iPad Pro 13-inch (M4)',    software: '17.4', lens: 'iPad Pro 13-inch (M4) back camera 5.1mm f/1.8' },
+  },
+  'Vivo': {
+    'Vivo X200 Pro':            { make: 'vivo', model: 'Vivo X200 Pro',             software: 'OriginOS 5', lens: 'Vivo X200 Pro back camera 8.7mm f/1.57' },
+    'Vivo X200':                { make: 'vivo', model: 'Vivo X200',                 software: 'OriginOS 5', lens: 'Vivo X200 back camera 6.9mm f/1.6' },
+    'Vivo X100 Ultra':          { make: 'vivo', model: 'Vivo X100 Ultra',           software: 'OriginOS 4', lens: 'Vivo X100 Ultra back camera 8.7mm f/1.75' },
+    'Vivo X100 Pro':            { make: 'vivo', model: 'Vivo X100 Pro',             software: 'OriginOS 4', lens: 'Vivo X100 Pro back camera 6.9mm f/1.75' },
+    'Vivo X100':                { make: 'vivo', model: 'Vivo X100',                 software: 'OriginOS 4', lens: 'Vivo X100 back camera 6.9mm f/1.57' },
+    'Vivo X90 Pro+':            { make: 'vivo', model: 'Vivo X90 Pro+',             software: 'OriginOS 3', lens: 'Vivo X90 Pro+ back camera 8.7mm f/1.75' },
+    'Vivo X90 Pro':             { make: 'vivo', model: 'Vivo X90 Pro',              software: 'OriginOS 3', lens: 'Vivo X90 Pro back camera 6.9mm f/1.6' },
+    'Vivo X Fold3 Pro':         { make: 'vivo', model: 'Vivo X Fold3 Pro',          software: 'OriginOS 4', lens: 'Vivo X Fold3 Pro back camera 6.9mm f/1.75' },
+  },
+  'iQOO': {
+    'iQOO 15':                  { make: 'iQOO', model: 'iQOO 15',                  software: 'OriginOS 6', lens: 'iQOO 15 back camera 8.7mm f/1.57' },
+    'iQOO 13':                  { make: 'iQOO', model: 'iQOO 13',                  software: 'OriginOS 5', lens: 'iQOO 13 back camera 8.7mm f/1.57' },
+    'iQOO 12':                  { make: 'iQOO', model: 'iQOO 12',                  software: 'OriginOS 4', lens: 'iQOO 12 back camera 8.7mm f/1.68' },
+    'iQOO Neo10 Pro':           { make: 'iQOO', model: 'iQOO Neo10 Pro',           software: 'OriginOS 5', lens: 'iQOO Neo10 Pro back camera 6.9mm f/1.6' },
+    'iQOO Neo9 Pro':            { make: 'iQOO', model: 'iQOO Neo9 Pro',            software: 'OriginOS 4', lens: 'iQOO Neo9 Pro back camera 6.9mm f/1.6' },
+    'iQOO Z9 Turbo+':           { make: 'iQOO', model: 'iQOO Z9 Turbo+',           software: 'OriginOS 4', lens: 'iQOO Z9 Turbo+ back camera 5.96mm f/1.79' },
+  },
+  'OPPO': {
+    'OPPO Find X8 Ultra':       { make: 'OPPO', model: 'OPPO Find X8 Ultra',       software: 'ColorOS 15', lens: 'OPPO Find X8 Ultra back camera 8.7mm f/1.6' },
+    'OPPO Find X8 Pro':         { make: 'OPPO', model: 'OPPO Find X8 Pro',         software: 'ColorOS 15', lens: 'OPPO Find X8 Pro back camera 6.9mm f/1.6' },
+    'OPPO Find X8':             { make: 'OPPO', model: 'OPPO Find X8',             software: 'ColorOS 15', lens: 'OPPO Find X8 back camera 6.9mm f/1.6' },
+    'OPPO Find N5':             { make: 'OPPO', model: 'OPPO Find N5',             software: 'ColorOS 15', lens: 'OPPO Find N5 back camera 6.9mm f/1.75' },
+    'OPPO Find N3':             { make: 'OPPO', model: 'OPPO Find N3',             software: 'ColorOS 14', lens: 'OPPO Find N3 back camera 6.9mm f/1.75' },
+    'OPPO Reno13 Pro':          { make: 'OPPO', model: 'OPPO Reno13 Pro 5G',       software: 'ColorOS 15', lens: 'OPPO Reno13 Pro back camera 6.9mm f/1.8' },
+    'OPPO Reno12 Pro':          { make: 'OPPO', model: 'OPPO Reno12 Pro 5G',       software: 'ColorOS 14', lens: 'OPPO Reno12 Pro back camera 6.9mm f/1.8' },
+  },
+  'Samsung': {
+    'Samsung Galaxy S25 Ultra': { make: 'Samsung', model: 'SM-S938B',              software: 'One UI 7', lens: 'Samsung Galaxy S25 Ultra back camera 8.7mm f/1.7' },
+    'Samsung Galaxy S25+':      { make: 'Samsung', model: 'SM-S936B',              software: 'One UI 7', lens: 'Samsung Galaxy S25+ back camera 6.9mm f/1.6' },
+    'Samsung Galaxy S25':       { make: 'Samsung', model: 'SM-S931B',              software: 'One UI 7', lens: 'Samsung Galaxy S25 back camera 6.9mm f/1.6' },
+    'Samsung Galaxy S24 Ultra': { make: 'Samsung', model: 'SM-S928B',              software: 'One UI 6.1', lens: 'Samsung Galaxy S24 Ultra back camera 8.7mm f/1.7' },
+    'Samsung Galaxy S24':       { make: 'Samsung', model: 'SM-S921B',              software: 'One UI 6.1', lens: 'Samsung Galaxy S24 back camera 6.9mm f/1.6' },
+    'Samsung Galaxy Z Fold6':   { make: 'Samsung', model: 'SM-F956B',              software: 'One UI 6.1.1', lens: 'Samsung Galaxy Z Fold6 back camera 6.9mm f/1.8' },
+    'Samsung Galaxy Z Flip6':   { make: 'Samsung', model: 'SM-F741B',              software: 'One UI 6.1.1', lens: 'Samsung Galaxy Z Flip6 back camera 6.9mm f/1.8' },
+  },
+  'Xiaomi': {
+    'Xiaomi 15 Ultra':          { make: 'Xiaomi', model: 'Xiaomi 15 Ultra',        software: 'HyperOS 2.0', lens: 'Xiaomi 15 Ultra back camera 8.7mm f/1.63' },
+    'Xiaomi 15 Pro':            { make: 'Xiaomi', model: 'Xiaomi 15 Pro',          software: 'HyperOS 2.0', lens: 'Xiaomi 15 Pro back camera 6.9mm f/1.6' },
+    'Xiaomi 15':                { make: 'Xiaomi', model: 'Xiaomi 15',              software: 'HyperOS 2.0', lens: 'Xiaomi 15 back camera 6.9mm f/1.6' },
+    'Xiaomi 14 Ultra':          { make: 'Xiaomi', model: 'Xiaomi 14 Ultra',        software: 'HyperOS 1.0', lens: 'Xiaomi 14 Ultra back camera 8.7mm f/1.63' },
+    'Xiaomi 14':                { make: 'Xiaomi', model: 'Xiaomi 14',              software: 'HyperOS 1.0', lens: 'Xiaomi 14 back camera 6.9mm f/1.6' },
+    'Redmi K80 Pro':            { make: 'Redmi', model: 'Redmi K80 Pro',           software: 'HyperOS 2.0', lens: 'Redmi K80 Pro back camera 6.9mm f/1.6' },
+    'Redmi K70 Ultra':          { make: 'Redmi', model: 'Redmi K70 Ultra',         software: 'HyperOS 1.0', lens: 'Redmi K70 Ultra back camera 6.9mm f/1.6' },
+  },
+  'Huawei': {
+    'Huawei Pura 70 Ultra':     { make: 'HUAWEI', model: 'HUAWEI Pura 70 Ultra',   software: 'HarmonyOS 4.2', lens: 'HUAWEI Pura 70 Ultra back camera 8.7mm f/1.6' },
+    'Huawei Pura 70 Pro':       { make: 'HUAWEI', model: 'HUAWEI Pura 70 Pro',     software: 'HarmonyOS 4.2', lens: 'HUAWEI Pura 70 Pro back camera 6.9mm f/1.6' },
+    'Huawei Mate 60 Pro+':      { make: 'HUAWEI', model: 'HUAWEI Mate 60 Pro+',    software: 'HarmonyOS 4.0', lens: 'HUAWEI Mate 60 Pro+ back camera 6.9mm f/1.6' },
+    'Huawei Mate 60 Pro':       { make: 'HUAWEI', model: 'HUAWEI Mate 60 Pro',     software: 'HarmonyOS 4.0', lens: 'HUAWEI Mate 60 Pro back camera 6.9mm f/1.6' },
+    'Huawei Mate X5':           { make: 'HUAWEI', model: 'HUAWEI Mate X5',         software: 'HarmonyOS 4.0', lens: 'HUAWEI Mate X5 back camera 6.9mm f/1.8' },
+  },
+  'Honor': {
+    'Honor Magic7 Pro':         { make: 'Honor', model: 'Honor Magic7 Pro',        software: 'MagicOS 9.0', lens: 'Honor Magic7 Pro back camera 8.7mm f/1.6' },
+    'Honor Magic7':             { make: 'Honor', model: 'Honor Magic7',            software: 'MagicOS 9.0', lens: 'Honor Magic7 back camera 6.9mm f/1.6' },
+    'Honor Magic V3':           { make: 'Honor', model: 'Honor Magic V3',          software: 'MagicOS 8.0.1', lens: 'Honor Magic V3 back camera 6.9mm f/1.6' },
+    'Honor 200 Pro':            { make: 'Honor', model: 'Honor 200 Pro',           software: 'MagicOS 8.0', lens: 'Honor 200 Pro back camera 6.9mm f/1.9' },
+  }
+};
+
+const BRANDS = Object.keys(PRESETS);
+
+// ============== STATE ==============
+let currentFile = null;
+let originalExif = null;
+let originalImageData = null;  // { canvas, ctx, width, height }
+
+// ============== INIT ==============
+document.addEventListener('DOMContentLoaded', () => {
+  renderBrandChips();
+  setupUpload();
+  setupTabs();
+  document.getElementById('fLat').addEventListener('input', updateGpsMap);
+  document.getElementById('fLng').addEventListener('input', updateGpsMap);
+  document.getElementById('btnDownload').disabled = false;
+});
+
+// ============== BRAND CHIPS ==============
+function renderBrandChips() {
+  const container = document.getElementById('brandChips');
+  BRANDS.forEach(brand => {
+    const chip = document.createElement('button');
+    chip.className = 'brand-chip';
+    chip.textContent = brand;
+    chip.onclick = () => selectBrand(brand);
+    container.appendChild(chip);
+  });
+}
+
+function selectBrand(brand) {
+  document.querySelectorAll('.brand-chip').forEach(c => c.classList.remove('active'));
+  for (const chip of document.querySelectorAll('.brand-chip')) {
+    if (chip.textContent === brand) { chip.classList.add('active'); break; }
+  }
+  const sel = document.getElementById('presetModel');
+  sel.innerHTML = '<option value="">— 选择型号 —</option>';
+  Object.keys(PRESETS[brand]).forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m;
+    opt.textContent = m;
+    sel.appendChild(opt);
+  });
+}
+
+function applyPreset() {
+  let activeBrand = null;
+  for (const chip of document.querySelectorAll('.brand-chip')) {
+    if (chip.classList.contains('active')) { activeBrand = chip.textContent; break; }
+  }
+  if (!activeBrand) return;
+  const model = document.getElementById('presetModel').value;
+  if (!model) return;
+  const preset = PRESETS[activeBrand][model];
+  if (!preset) return;
+  document.getElementById('fMake').value = preset.make;
+  document.getElementById('fModel').value = preset.model;
+  document.getElementById('fSoftware').value = preset.software;
+  document.getElementById('fLens').value = preset.lens;
+  showToast(`已应用 ${activeBrand} ${model} 的预设`, 'success');
+}
+
+// ============== UPLOAD ==============
+function setupUpload() {
+  const zone = document.getElementById('uploadZone');
+  const input = document.getElementById('fileInput');
+
+  zone.addEventListener('click', (e) => {
+    if (e.target.tagName !== 'INPUT' && !zone.classList.contains('has-image')) {
+      input.click();
+    }
+  });
+  input.addEventListener('change', () => {
+    if (input.files && input.files[0]) handleFile(input.files[0]);
+  });
+  zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('dragover'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+  zone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    zone.classList.remove('dragover');
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+  });
+}
+
+async function handleFile(file) {
+  if (!file.type.match(/^image\//i)) {
+    showToast('请上传图片格式的文件', 'error');
+    return;
+  }
+
+  currentFile = file;
+  document.getElementById('uploadZone').classList.add('has-image');
+  document.getElementById('loadingBar').style.display = 'block';
+
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const dataUrl = e.target.result;
+    // Show preview
+    document.getElementById('previewImage').src = dataUrl;
+    document.getElementById('previewArea').style.display = 'block';
+    document.getElementById('uploadPrompt').style.display = 'none';
+    document.getElementById('previewPlaceholder').style.display = 'none';
+
+    // Load into canvas (works for ANY image format)
+    await loadImageToCanvas(dataUrl);
+    document.getElementById('loadingBar').style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+}
+
+// ============== CANVAS LOADING ==============
+async function loadImageToCanvas(dataUrl) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      // Scale down if huge (max 4000px)
+      let w = img.naturalWidth;
+      let h = img.naturalHeight;
+      const maxDim = 4000;
+      if (w > maxDim || h > maxDim) {
+        const ratio = Math.min(maxDim / w, maxDim / h);
+        w = Math.round(w * ratio);
+        h = Math.round(h * ratio);
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+
+      originalImageData = { canvas, ctx, width: w, height: h, img };
+
+      // Try to read EXIF from original file
+      readExifFromOriginal();
+
+      document.getElementById('btnDownload').disabled = false;
+      showToast('照片已加载，支持任意图片格式', 'success');
+      resolve();
+    };
+    img.onerror = () => {
+      showToast('图片加载失败', 'error');
+      resolve();
+    };
+    img.src = dataUrl;
+  });
+}
+
+async function readExifFromOriginal() {
+  // If it's a JPEG we can read EXIF directly from file
+  try {
+    if (currentFile && currentFile.type.match(/jpeg|jpg/i)) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const exifData = piexif.load(e.target.result);
+          if (exifData && Object.keys(exifData['0th']).length > 0) {
+            originalExif = JSON.parse(JSON.stringify(exifData));
+            populateFormFromExif(exifData);
+            showExifSummary(exifData);
+            showToast('EXIF 数据已加载', 'success');
+            return;
+          }
+        } catch(ex) { /* ignore */ }
+        // No EXIF found
+        originalExif = { '0th': {}, 'Exif': {}, 'GPS': {}, '1st': {} };
+        showExifSummary(null);
+        showToast('未检测到 EXIF 数据，可以从头创建', 'info');
+      };
+      reader.readAsBinaryString(currentFile);
+    } else {
+      // PNG/WebP/etc - no native EXIF reading in browser
+      originalExif = { '0th': {}, 'Exif': {}, 'GPS': {}, '1st': {} };
+      showExifSummary(null);
+      showToast('非 JPEG 格式，EXIF 将从空白创建', 'info');
+    }
+  } catch (err) {
+    originalExif = { '0th': {}, 'Exif': {}, 'GPS': {}, '1st': {} };
+    showExifSummary(null);
+    showToast('未检测到 EXIF 数据，可以从头创建', 'info');
+  }
+}
+
+function exifGet(exifObj, ifd, tag) {
+  try { return exifObj[ifd][tag]; } catch(e) { return undefined; }
+}
+
+function showExifSummary(exif) {
+  const container = document.getElementById('exifSummary');
+  const grid = document.getElementById('exifSummaryGrid');
+  container.style.display = 'block';
+
+  if (!exif) {
+    grid.innerHTML = '<div style="color:var(--text2);font-size:0.8rem;">无 EXIF 数据（非 JPEG 格式，EXIF 将全新创建）</div>';
+    return;
+  }
+
+  const make = exifGet(exif, '0th', piexif.ImageIFD.Make) || '';
+  const model = exifGet(exif, '0th', piexif.ImageIFD.Model) || '';
+  const dt = exifGet(exif, 'Exif', piexif.ExifIFD.DateTimeOriginal) || '';
+  const iso = exifGet(exif, 'Exif', piexif.ExifIFD.ISOSpeedRatings) || '';
+  const fnum = exifGet(exif, 'Exif', piexif.ExifIFD.FNumber);
+  const flen = exifGet(exif, 'Exif', piexif.ExifIFD.FocalLength);
+
+  const items = [];
+  if (make) items.push({k: '制造商', v: make});
+  if (model) items.push({k: '型号', v: model});
+  if (dt) items.push({k: '拍摄时间', v: String(dt).replace(/:/g, '-').replace(' ', ' T')});
+  if (iso) items.push({k: 'ISO', v: iso});
+  if (fnum) items.push({k: '光圈', v: 'f/' + rationalToFloat(fnum).toFixed(1)});
+  if (flen) items.push({k: '焦距', v: rationalToFloat(flen).toFixed(1) + ' mm'});
+
+  const lat = exifGet(exif, 'GPS', piexif.GPSIFD.GPSLatitude);
+  const lng = exifGet(exif, 'GPS', piexif.GPSIFD.GPSLongitude);
+  if (lat && lng) {
+    try {
+      const latD = dmsToDecimal(lat, exifGet(exif, 'GPS', piexif.GPSIFD.GPSLatitudeRef));
+      const lngD = dmsToDecimal(lng, exifGet(exif, 'GPS', piexif.GPSIFD.GPSLongitudeRef));
+      items.push({k: 'GPS', v: `${latD.toFixed(4)}, ${lngD.toFixed(4)}`});
+    } catch(e) {}
+  }
+
+  if (items.length === 0) {
+    grid.innerHTML = '<div style="color:var(--text2);font-size:0.8rem;">无 EXIF 数据</div>';
+    return;
+  }
+  grid.innerHTML = items.map(it =>
+    `<div class="exif-summary-item"><span class="exif-summary-key">${it.k}</span><span class="exif-summary-val">${it.v}</span></div>`
+  ).join('');
+}
+
+// ============== POPULATE FORM ==============
+function populateFormFromExif(exif) {
+  setVal('fMake', exifGet(exif, '0th', piexif.ImageIFD.Make) || '');
+  setVal('fModel', exifGet(exif, '0th', piexif.ImageIFD.Model) || '');
+  setVal('fSoftware', exifGet(exif, '0th', piexif.ImageIFD.Software) || '');
+  setVal('fLens', exifGet(exif, 'Exif', piexif.ExifIFD.LensModel) || '');
+
+  const dtStr = exifGet(exif, 'Exif', piexif.ExifIFD.DateTimeOriginal) || exifGet(exif, '0th', piexif.ImageIFD.DateTime);
+  if (dtStr) {
+    const cleaned = String(dtStr).replace(/\//g, ':').trim();
+    const parts = cleaned.split(' ');
+    if (parts.length >= 2) {
+      document.getElementById('fDateTime').value = parts[0].replace(/:/g, '-') + 'T' + parts[1];
+    }
+  }
+
+  const fnum = exifGet(exif, 'Exif', piexif.ExifIFD.FNumber);
+  if (fnum) setVal('fAperture', rationalToFloat(fnum));
+
+  const expTime = exifGet(exif, 'Exif', piexif.ExifIFD.ExposureTime);
+  if (expTime) {
+    try {
+      const n = Array.isArray(expTime) ? expTime[0] : expTime;
+      const d = Array.isArray(expTime) ? expTime[1] : 1;
+      if (d && n) setVal('fShutter', n/d < 1 && n > 0 && d > n ? `${Math.round(d/n)}/1` : (n/d).toFixed(4));
+    } catch(e) {}
+  }
+
+  const iso = exifGet(exif, 'Exif', piexif.ExifIFD.ISOSpeedRatings);
+  if (iso !== undefined && iso !== null) setVal('fISO', Array.isArray(iso) ? iso[0] : iso);
+
+  const flen = exifGet(exif, 'Exif', piexif.ExifIFD.FocalLength);
+  if (flen) setVal('fFocal', rationalToFloat(flen));
+
+  const ebias = exifGet(exif, 'Exif', piexif.ExifIFD.ExposureBiasValue);
+  if (ebias !== undefined && ebias !== null) setVal('fExposureBias', rationalToFloat(ebias));
+
+  const f35 = exifGet(exif, 'Exif', piexif.ExifIFD.FocalLengthIn35mmFilm);
+  if (f35) setVal('fFocal35', f35);
+
+  const dz = exifGet(exif, 'Exif', piexif.ExifIFD.DigitalZoomRatio);
+  if (dz) setVal('fDigitalZoom', rationalToFloat(dz));
+
+  const wb = exifGet(exif, 'Exif', piexif.ExifIFD.WhiteBalance);
+  if (wb !== undefined && wb !== null) document.getElementById('fWhiteBalance').value = String(wb);
+
+  const mm = exifGet(exif, 'Exif', piexif.ExifIFD.MeteringMode);
+  if (mm !== undefined && mm !== null) document.getElementById('fMeteringMode').value = String(mm);
+
+  const flash = exifGet(exif, 'Exif', piexif.ExifIFD.Flash);
+  if (flash !== undefined && flash !== null) document.getElementById('fFlash').value = String(flash);
+
+  const lat = exifGet(exif, 'GPS', piexif.GPSIFD.GPSLatitude);
+  const latRef = exifGet(exif, 'GPS', piexif.GPSIFD.GPSLatitudeRef);
+  const lng = exifGet(exif, 'GPS', piexif.GPSIFD.GPSLongitude);
+  const lngRef = exifGet(exif, 'GPS', piexif.GPSIFD.GPSLongitudeRef);
+  const alt = exifGet(exif, 'GPS', piexif.GPSIFD.GPSAltitude);
+  const gpsDate = exifGet(exif, 'GPS', piexif.GPSIFD.GPSDateStamp);
+
+  if (lat && lng) {
+    try {
+      setVal('fLat', dmsToDecimal(lat, latRef || 'N'));
+      setVal('fLng', dmsToDecimal(lng, lngRef || 'E'));
+      if (latRef) document.getElementById('fLatRef').value = latRef;
+      if (lngRef) document.getElementById('fLngRef').value = lngRef;
+    } catch(e) {}
+  }
+  if (alt) setVal('fAltitude', rationalToFloat(alt));
+  if (gpsDate) document.getElementById('fGpsDate').value = String(gpsDate).replace(/:/g, '-');
+  updateGpsMap();
+}
+
+// ============== RANDOM CAMERA PARAMS ==============
+function randomAllPhotoParams() {
+  const apertures = [1.4, 1.6, 1.78, 1.8, 1.9, 2.0, 2.2, 2.4, 2.8, 3.5, 4.0];
+  setVal('fAperture', apertures[randInt(0, apertures.length-1)]);
+  const shutters = ['1/8000', '1/4000', '1/2000', '1/1000', '1/500', '1/250', '1/120', '1/100', '1/60', '1/30', '1/15', '1/8', '1/4'];
+  setVal('fShutter', shutters[randInt(0, shutters.length-1)]);
+  const isos = [25, 32, 50, 64, 80, 100, 125, 160, 200, 250, 320, 400, 500, 640, 800, 1000, 1250, 1600, 2000, 3200, 6400];
+  setVal('fISO', isos[randInt(0, isos.length-1)]);
+  const focals = [1.57, 1.78, 2.0, 2.2, 3.0, 3.5, 4.0, 4.4, 5.1, 5.7, 5.96, 6.8, 6.86, 6.9, 7.4, 8.7, 9.0, 12.5, 17.2, 22.0, 26.0];
+  setVal('fFocal', focals[randInt(0, focals.length-1)]);
+  const biases = [-3.0, -2.7, -2.0, -1.7, -1.0, -0.7, -0.3, 0.0, 0.3, 0.7, 1.0, 1.7, 2.0, 2.7, 3.0];
+  setVal('fExposureBias', biases[randInt(0, biases.length-1)]);
+  const f35s = [13, 14, 16, 18, 20, 23, 24, 26, 28, 35, 50, 70, 85, 105, 120, 200];
+  setVal('fFocal35', f35s[randInt(0, f35s.length-1)]);
+  const zooms = [1.0, 1.0, 1.0, 1.0, 1.5, 2.0, 2.5, 3.0, 5.0];
+  setVal('fDigitalZoom', zooms[randInt(0, zooms.length-1)]);
+  document.getElementById('fWhiteBalance').value = ['0','0','0','0','0','1','2','3'][randInt(0,7)];
+  document.getElementById('fMeteringMode').value = ['4','4','4','4','2','3','5'][randInt(0,6)];
+  document.getElementById('fFlash').value = ['0','0','0','0','0','0','1','5','7','16','24'][randInt(0,10)];
+  const now = new Date();
+  const rd = new Date(new Date(now.getFullYear()-3,0,1).getTime() + Math.random()*(now.getTime()-new Date(now.getFullYear()-3,0,1).getTime()));
+  document.getElementById('fDateTime').value = `${rd.getFullYear()}-${pad2(rd.getMonth()+1)}-${pad2(rd.getDate())}T${pad2(rd.getHours())}:${pad2(rd.getMinutes())}:${pad2(rd.getSeconds())}`;
+  showToast('✅ 所有拍摄参数已随机填充', 'success');
+}
+
+function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+
+// ============== BUILD EXIF ==============
+function buildExif() {
+  const baseExif = originalExif || { '0th': {}, 'Exif': {}, 'GPS': {}, '1st': {} };
+  const exif = JSON.parse(JSON.stringify(baseExif));
+
+  function setIfd(ifd, tag, val) {
+    if (val === '' || val === null || val === undefined || (typeof val === 'number' && isNaN(val))) {
+      delete exif[ifd][tag];
+    } else {
+      exif[ifd][tag] = val;
+    }
+  }
+
+  setIfd('0th', piexif.ImageIFD.Make, getVal('fMake'));
+  setIfd('0th', piexif.ImageIFD.Model, getVal('fModel'));
+  setIfd('0th', piexif.ImageIFD.Software, getVal('fSoftware'));
+  setIfd('Exif', piexif.ExifIFD.LensModel, getVal('fLens'));
+
+  const dtVal = document.getElementById('fDateTime').value;
+  if (dtVal) {
+    const d = new Date(dtVal);
+    const fmt = `${d.getFullYear()}:${pad2(d.getMonth()+1)}:${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+    setIfd('Exif', piexif.ExifIFD.DateTimeOriginal, fmt);
+    setIfd('0th', piexif.ImageIFD.DateTime, fmt);
+  } else {
+    delete exif['Exif'][piexif.ExifIFD.DateTimeOriginal];
+    delete exif['0th'][piexif.ImageIFD.DateTime];
+  }
+
+  const ap = parseFloat(getVal('fAperture'));
+  if (!isNaN(ap) && ap > 0) setIfd('Exif', piexif.ExifIFD.FNumber, floatToRational(ap));
+  else delete exif['Exif'][piexif.ExifIFD.FNumber];
+
+  const shutterStr = getVal('fShutter');
+  if (shutterStr) {
+    const shutterVal = parseShutter(shutterStr);
+    if (shutterVal !== null) {
+      setIfd('Exif', piexif.ExifIFD.ExposureTime, shutterVal);
+      setIfd('Exif', piexif.ExifIFD.ShutterSpeedValue, floatToRational(-Math.log2(shutterVal[0]/shutterVal[1]), 10000));
+    }
+  } else {
+    delete exif['Exif'][piexif.ExifIFD.ExposureTime];
+    delete exif['Exif'][piexif.ExifIFD.ShutterSpeedValue];
+  }
+
+  const iso = parseInt(getVal('fISO'));
+  if (!isNaN(iso) && iso > 0) setIfd('Exif', piexif.ExifIFD.ISOSpeedRatings, iso);
+
+  const fl = parseFloat(getVal('fFocal'));
+  if (!isNaN(fl) && fl > 0) setIfd('Exif', piexif.ExifIFD.FocalLength, floatToRational(fl));
+
+  const eb = parseFloat(getVal('fExposureBias'));
+  if (!isNaN(eb)) setIfd('Exif', piexif.ExifIFD.ExposureBiasValue, floatToRational(eb));
+
+  const f35 = parseInt(getVal('fFocal35'));
+  if (!isNaN(f35) && f35 > 0) setIfd('Exif', piexif.ExifIFD.FocalLengthIn35mmFilm, f35);
+
+  const dz = parseFloat(getVal('fDigitalZoom'));
+  if (!isNaN(dz) && dz > 0) setIfd('Exif', piexif.ExifIFD.DigitalZoomRatio, floatToRational(dz));
+
+  const wb = document.getElementById('fWhiteBalance').value;
+  if (wb !== '') setIfd('Exif', piexif.ExifIFD.WhiteBalance, parseInt(wb));
+  const mm = document.getElementById('fMeteringMode').value;
+  if (mm !== '') setIfd('Exif', piexif.ExifIFD.MeteringMode, parseInt(mm));
+  const flash = document.getElementById('fFlash').value;
+  if (flash !== '') setIfd('Exif', piexif.ExifIFD.Flash, parseInt(flash));
+
+  // GPS
+  const lat = parseFloat(getVal('fLat'));
+  const lng = parseFloat(getVal('fLng'));
+  if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+    setIfd('GPS', piexif.GPSIFD.GPSLatitudeRef, document.getElementById('fLatRef').value);
+    setIfd('GPS', piexif.GPSIFD.GPSLatitude, decimalToDms(lat));
+    setIfd('GPS', piexif.GPSIFD.GPSLongitudeRef, document.getElementById('fLngRef').value);
+    setIfd('GPS', piexif.GPSIFD.GPSLongitude, decimalToDms(lng));
+    const alt = parseFloat(getVal('fAltitude'));
+    if (!isNaN(alt)) {
+      setIfd('GPS', piexif.GPSIFD.GPSAltitudeRef, alt < 0 ? 1 : 0);
+      setIfd('GPS', piexif.GPSIFD.GPSAltitude, floatToRational(Math.abs(alt)));
+    } else {
+      delete exif['GPS'][piexif.GPSIFD.GPSAltitudeRef];
+      delete exif['GPS'][piexif.GPSIFD.GPSAltitude];
+    }
+    const gpsDate = document.getElementById('fGpsDate').value;
+    const dateSrc = gpsDate || dtVal;
+    if (dateSrc) {
+      const d = new Date(dateSrc);
+      setIfd('GPS', piexif.GPSIFD.GPSDateStamp, `${d.getFullYear()}:${pad2(d.getMonth()+1)}:${pad2(d.getDate())}`);
+      setIfd('GPS', piexif.GPSIFD.GPSTimeStamp, [floatToRational(d.getHours()), floatToRational(d.getMinutes()), floatToRational(d.getSeconds())]);
+    }
+  } else {
+    delete exif['GPS'];
+    exif['GPS'] = {};
+  }
+
+  for (const ifd of ['0th', 'Exif', 'GPS', '1st']) {
+    if (exif[ifd] && Object.keys(exif[ifd]).length === 0) delete exif[ifd];
+  }
+  if (!exif['0th']) exif['0th'] = {};
+  if (!exif['Exif']) exif['Exif'] = {};
+  if (!exif['GPS']) exif['GPS'] = {};
+  if (!exif['1st']) exif['1st'] = {};
+
+  return exif;
+}
+
+// ============== HELPERS ==============
+function getVal(id) { return document.getElementById(id).value; }
+function setVal(id, v) { document.getElementById(id).value = v; }
+function pad2(n) { return String(n).padStart(2, '0'); }
+
+function rationalToFloat(r) {
+  if (!r) return 0;
+  if (Array.isArray(r)) {
+    if (r.length === 2 && r[1] !== 0) return r[0] / r[1];
+    return r[0] || 0;
+  }
+  return r;
+}
+
+function floatToRational(v, maxDenom) {
+  maxDenom = maxDenom || 1000000;
+  if (v === 0) return [0, 1];
+  const neg = v < 0;
+  v = Math.abs(v);
+  const commonDenoms = [1,2,3,4,5,8,10,15,20,25,30,50,60,100,125,200,250,500,1000,2000,4000,8000];
+  for (const d of commonDenoms) {
+    const n = Math.round(v * d);
+    if (Math.abs(n / d - v) < 0.001) return [neg ? -n : n, d];
+  }
+  let bestNum = 1, bestDen = 1, bestDiff = Infinity;
+  for (let den = 1; den <= maxDenom && den < 100000; den++) {
+    const num = Math.round(v * den);
+    const diff = Math.abs(num / den - v);
+    if (diff < bestDiff) { bestDiff = diff; bestNum = num; bestDen = den; }
+    if (diff < 1e-10) break;
+  }
+  return [neg ? -bestNum : bestNum, bestDen];
+}
+
+function parseShutter(str) {
+  str = str.trim();
+  if (str.includes('/')) {
+    const parts = str.split('/');
+    if (parts.length === 2) {
+      const n = parseInt(parts[0]), d = parseInt(parts[1]);
+      if (n > 0 && d > 0) return [n, d];
+    }
+  }
+  const val = parseFloat(str);
+  if (!isNaN(val) && val > 0) return floatToRational(val);
+  return null;
+}
+
+function decimalToDms(dec) {
+  const abs = Math.abs(dec);
+  const deg = Math.floor(abs);
+  const min = Math.floor((abs - deg) * 60);
+  const sec = ((abs - deg) * 60 - min) * 60;
+  return [floatToRational(deg), floatToRational(min), floatToRational(sec)];
+}
+
+function dmsToDecimal(dms, ref) {
+  if (!dms || !Array.isArray(dms)) return 0;
+  let val = rationalToFloat(dms[0]) + rationalToFloat(dms[1]) / 60 + rationalToFloat(dms[2]) / 3600;
+  if (ref === 'S' || ref === 'W') val = -val;
+  return val;
+}
+
+// ============== GPS MAP ==============
+function updateGpsMap() {
+  const lat = parseFloat(getVal('fLat'));
+  const lng = parseFloat(getVal('fLng'));
+  const el = document.getElementById('gpsMapLink');
+  const text = document.getElementById('gpsMapText');
+  if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+    el.title = `点击在 OpenStreetMap 中查看 (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+    text.textContent = `${lat.toFixed(4)}, ${lng.toFixed(4)} — 点击打开地图`;
+    el.dataset.lat = lat;
+    el.dataset.lng = lng;
+    el.style.backgroundImage = `url(https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lng}&zoom=13&size=600x140&markers=${lat},${lng},red-pushpin)`;
+  } else {
+    el.style.backgroundImage = '';
+    text.textContent = '设置坐标后点击可在地图中查看';
+    delete el.dataset.lat;
+    delete el.dataset.lng;
+  }
+}
+
+function openGpsMap() {
+  const el = document.getElementById('gpsMapLink');
+  if (el.dataset.lat && el.dataset.lng) {
+    window.open(`https://www.openstreetmap.org/?mlat=${el.dataset.lat}&mlon=${el.dataset.lng}#map=15/${el.dataset.lat}/${el.dataset.lng}`, '_blank');
+  }
+}
+
+function setRandomGps() {
+  const cities = [
+    { name: '北京', lat: 39.9042, lng: 116.4074 }, { name: '上海', lat: 31.2304, lng: 121.4737 },
+    { name: '深圳', lat: 22.5431, lng: 114.0579 }, { name: '广州', lat: 23.1291, lng: 113.2644 },
+    { name: '杭州', lat: 30.2741, lng: 120.1551 }, { name: '成都', lat: 30.5728, lng: 104.0668 },
+    { name: 'Tokyo', lat: 35.6762, lng: 139.6503 }, { name: 'New York', lat: 40.7128, lng: -74.0060 },
+    { name: 'London', lat: 51.5074, lng: -0.1278 }, { name: 'Paris', lat: 48.8566, lng: 2.3522 },
+    { name: 'Sydney', lat: -33.8688, lng: 151.2093 }, { name: 'Dubai', lat: 25.2048, lng: 55.2708 },
+  ];
+  const city = cities[randInt(0, cities.length-1)];
+  const lat = parseFloat((city.lat + (Math.random()-0.5)*0.1).toFixed(6));
+  const lng = parseFloat((city.lng + (Math.random()-0.5)*0.1).toFixed(6));
+  setVal('fLat', lat);
+  setVal('fLng', lng);
+  document.getElementById('fLatRef').value = lat >= 0 ? 'N' : 'S';
+  document.getElementById('fLngRef').value = lng >= 0 ? 'E' : 'W';
+  updateGpsMap();
+  showToast(`📍 已设为 ${city.name} 附近坐标`, 'success');
+}
+
+function clearGps() {
+  setVal('fLat', ''); setVal('fLng', ''); setVal('fAltitude', '');
+  document.getElementById('fGpsDate').value = '';
+  updateGpsMap();
+  showToast('GPS 数据已清空', 'info');
+}
+
+// ============== TABS ==============
+function setupTabs() {
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+}
+
+// ============== RESET ==============
+function resetAll() {
+  if (!originalImageData) { showToast('请先上传照片', 'info'); return; }
+  if (originalExif) {
+    populateFormFromExif(originalExif);
+  } else {
+    setVal('fMake',''); setVal('fModel',''); setVal('fSoftware',''); setVal('fLens','');
+    document.getElementById('fDateTime').value = '';
+    document.getElementById('fWhiteBalance').value = '';
+    document.getElementById('fMeteringMode').value = '';
+    document.getElementById('fFlash').value = '';
+    clearGps();
+  }
+  document.querySelectorAll('.brand-chip').forEach(c => c.classList.remove('active'));
+  document.getElementById('presetModel').innerHTML = '<option value="">— 请先选择品牌 —</option>';
+  showToast('已重置', 'info');
+}
+
+// ============== DOWNLOAD ==============
+function downloadImage() {
+  if (!originalImageData) {
+    showToast('请先上传照片', 'error');
+    return;
+  }
+
+  try {
+    // Build EXIF data
+    const exifObj = buildExif();
+    const exifBytes = piexif.dump(exifObj);
+
+    // Export canvas to JPEG binary, then insert EXIF
+    const canvas = originalImageData.canvas;
+    const mimeType = 'image/jpeg';
+    const quality = 0.95;
+
+    canvas.toBlob(function(blob) {
+      const reader = new FileReader();
+      reader.onload = function() {
+        try {
+          const binary = reader.result;
+          const newBinary = piexif.insert(exifBytes, binary);
+          const bytes = binaryStringToUint8Array(newBinary);
+          const outBlob = new Blob([bytes], { type: mimeType });
+          const url = URL.createObjectURL(outBlob);
+          const a = document.createElement('a');
+          a.href = url;
+          const name = currentFile ? currentFile.name.replace(/\.[^.]+$/, '') : 'photo';
+          a.download = `${name}_exif_edited.jpg`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          showToast('✅ 下载成功！EXIF 已嵌入到 JPEG 中', 'success');
+        } catch(innerErr) {
+          console.error(innerErr);
+          const msg = innerErr && typeof innerErr === 'object' && innerErr.message ? innerErr.message : String(innerErr);
+          showToast('❌ 生成失败: ' + msg, 'error');
+        }
+      };
+      reader.readAsBinaryString(blob);
+    }, mimeType, quality);
+
+  } catch (err) {
+    console.error('Download error:', err);
+    const msg = (err && typeof err === 'object' && err.message) ? err.message : String(err);
+    showToast('❌ 生成失败: ' + msg, 'error');
+  }
+}
+
+function binaryStringToUint8Array(binary) {
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+// ============== TOAST ==============
+function showToast(msg, type) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.className = 'toast show' + (type ? ' ' + type : '');
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => { toast.classList.remove('show'); }, 3500);
+}
+</script>
+</body>
+</html>
